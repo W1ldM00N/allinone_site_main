@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  MANAGER
+  ADMIN
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  email String @unique
+  role UserRole @default(USER)
+  xp Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  teamMemberships TeamMember[]
+  projectMemberships ProjectMember[]
+  assignedTasks Task[] @relation("TaskAssignee")
+  createdTasks Task[] @relation("TaskCreator")
+  submissions Submission[]
+  xpTransactions XPTransaction[]
+  applications Application[]
+  notifications Notification[]
+}
+
+model Department {
+  id String @id @default(uuid()) @db.Uuid
+  name String @unique
+  teams Team[]
+  createdAt DateTime @default(now())
+}
+
+model Team {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  departmentId String? @db.Uuid
+  createdAt DateTime @default(now())
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  members TeamMember[]
+  projects Project[]
+  applications Application[]
+  @@index([departmentId])
+}
+
+model TeamMember {
+  teamId String @db.Uuid
+  userId String @db.Uuid
+  joinedAt DateTime @default(now())
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([teamId, userId])
+  @@index([userId])
+}
+
+model Project {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  description String?
+  status ProjectStatus @default(PLANNING)
+  teamId String? @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  members ProjectMember[]
+  tasks Task[]
+  @@index([teamId])
+  @@index([status])
+}
+
+model ProjectMember {
+  projectId String @db.Uuid
+  userId String @db.Uuid
+  joinedAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([projectId, userId])
+  @@index([userId])
+}
+
+model Task {
+  id String @id @default(uuid()) @db.Uuid
+  title String
+  description String?
+  status TaskStatus @default(TODO)
+  xpReward Int @default(0)
+  projectId String @db.Uuid
+  assigneeId String? @db.Uuid
+  creatorId String? @db.Uuid
+  dueAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator User? @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  submissions Submission[]
+  @@index([projectId, status])
+  @@index([assigneeId])
+  @@index([creatorId])
+}
+
+model Submission {
+  id String @id @default(uuid()) @db.Uuid
+  taskId String @db.Uuid
+  userId String @db.Uuid
+  status SubmissionStatus @default(PENDING)
+  comment String?
+  attachmentUrl String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([taskId, createdAt])
+  @@index([userId])
+}
+
+model XPTransaction {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  amount Int
+  reason String
+  referenceId String? @db.Uuid
+  idempotencyKey String @unique
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+}
+
+model Application {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  teamId String? @db.Uuid
+  status ApplicationStatus @default(PENDING)
+  message String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  @@index([userId, status])
+  @@index([teamId, status])
+}
+
+model Notification {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  title String
+  body String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, readAt, createdAt])
+}
